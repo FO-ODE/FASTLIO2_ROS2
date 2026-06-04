@@ -41,8 +41,8 @@ struct State
     M3D r_wi = M3D::Identity();
     V3D t_wi = V3D::Zero();
     V3D v = V3D::Zero();
-    V3D bg = V3D::Zero();
     V3D ba = V3D::Zero();
+    V3D bg = V3D::Zero();
     V3D g = V3D(0.0, 0.0, -9.81);
 
     void initGravityDir(const V3D &gravity_dir) { g = gravity_dir.normalized() * State::gravity; }
