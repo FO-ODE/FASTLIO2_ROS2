@@ -4,10 +4,12 @@
 #include <memory>
 #include <iostream>
 #include <chrono>
+#include <cmath>
 // #include <filesystem>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <livox_ros_driver2/msg/custom_msg.hpp>
+#include <unitree_go/msg/low_state.hpp>
 
 #include "utils.h"
 #include "map_builder/commons.h"
@@ -26,6 +28,7 @@ struct NodeConfig
 {
     std::string imu_topic = "/livox/imu";
     std::string lidar_topic = "/livox/lidar";
+    std::string lowstate_topic = "/lowstate";
     std::string body_frame = "body";
     std::string world_frame = "lidar";
     bool print_time_cost = false;
@@ -35,9 +38,12 @@ struct StateData
     bool lidar_pushed = false;
     std::mutex imu_mutex;
     std::mutex lidar_mutex;
+    std::mutex lowstate_mutex;
     double last_lidar_time = -1.0;
     double last_imu_time = -1.0;
+    double last_lowstate_time = -1.0;
     std::deque<IMUData> imu_buffer;
+    std::deque<LowStateData> lowstate_buffer;
     std::deque<std::pair<double, pcl::PointCloud<pcl::PointXYZINormal>::Ptr>> lidar_buffer;
     nav_msgs::msg::Path path;
 };
@@ -52,6 +58,7 @@ public:
 
         m_imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(m_node_config.imu_topic, 10, std::bind(&LIONode::imuCB, this, std::placeholders::_1));
         m_lidar_sub = this->create_subscription<livox_ros_driver2::msg::CustomMsg>(m_node_config.lidar_topic, 10, std::bind(&LIONode::lidarCB, this, std::placeholders::_1));
+        m_lowstate_sub = this->create_subscription<unitree_go::msg::LowState>(m_node_config.lowstate_topic, 10, std::bind(&LIONode::lowstateCB, this, std::placeholders::_1));
 
         m_body_cloud_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("body_cloud", 10000);
         m_world_cloud_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("world_cloud", 10000);
@@ -84,6 +91,7 @@ public:
 
         m_node_config.imu_topic = config["imu_topic"].as<std::string>();
         m_node_config.lidar_topic = config["lidar_topic"].as<std::string>();
+        m_node_config.lowstate_topic = config["lowstate_topic"].as<std::string>();
         m_node_config.body_frame = config["body_frame"].as<std::string>();
         m_node_config.world_frame = config["world_frame"].as<std::string>();
         m_node_config.print_time_cost = config["print_time_cost"].as<bool>();
@@ -126,6 +134,34 @@ public:
                                              timestamp);
         m_state_data.last_imu_time = timestamp;
     }
+
+    void lowstateCB(const unitree_go::msg::LowState::SharedPtr msg)
+    {
+        std::lock_guard<std::mutex> lock(m_state_data.lowstate_mutex);
+        double timestamp = this->get_clock()->now().seconds();
+        if (timestamp < m_state_data.last_lowstate_time)
+        {
+            RCLCPP_WARN(this->get_logger(), "LowState Message is out of order");
+            std::deque<LowStateData>().swap(m_state_data.lowstate_buffer);
+        }
+
+        V12D joint_pos = V12D::Zero();
+        V12D joint_vel = V12D::Zero();
+        V4D foot_force = V4D::Zero();
+
+        for (size_t i = 0; i < 12; i++)
+        {
+            const auto &motor = msg->motor_state[i];
+            joint_pos(i) = finiteOrZero(motor.q);
+            joint_vel(i) = finiteOrZero(motor.dq);
+        }
+        for (size_t i = 0; i < 4; i++)
+            foot_force(i) = static_cast<double>(msg->foot_force[i]);
+
+        m_state_data.lowstate_buffer.emplace_back(joint_pos, joint_vel, foot_force, timestamp);
+        m_state_data.last_lowstate_time = timestamp;
+    }
+
     void lidarCB(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg)
     {
         CloudType::Ptr cloud = Utils::livox2PCL(msg, m_builder_config.lidar_filter_num, m_builder_config.lidar_min_range, m_builder_config.lidar_max_range);
@@ -157,10 +193,19 @@ public:
             return false;
 
         Vec<IMUData>().swap(m_package.imus);
+        Vec<LowStateData>().swap(m_package.lowstates);
         while (!m_state_data.imu_buffer.empty() && m_state_data.imu_buffer.front().time < m_package.cloud_end_time)
         {
             m_package.imus.emplace_back(m_state_data.imu_buffer.front());
             m_state_data.imu_buffer.pop_front();
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_state_data.lowstate_mutex);
+            while (!m_state_data.lowstate_buffer.empty() && m_state_data.lowstate_buffer.front().time < m_package.cloud_end_time)
+            {
+                m_package.lowstates.emplace_back(m_state_data.lowstate_buffer.front());
+                m_state_data.lowstate_buffer.pop_front();
+            }
         }
         m_state_data.lidar_buffer.pop_front();
         m_state_data.lidar_pushed = false;
@@ -271,9 +316,15 @@ public:
         publishPath(m_path_pub, m_node_config.world_frame, m_package.cloud_end_time);
     }
 
+    static double finiteOrZero(double value)
+    {
+        return std::isfinite(value) ? value : 0.0;
+    }
+
 private:
     rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr m_lidar_sub;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr m_imu_sub;
+    rclcpp::Subscription<unitree_go::msg::LowState>::SharedPtr m_lowstate_sub;
 
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr m_body_cloud_pub;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr m_world_cloud_pub;

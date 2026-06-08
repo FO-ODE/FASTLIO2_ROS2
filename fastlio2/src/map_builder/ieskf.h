@@ -7,7 +7,6 @@ using M12D = Eigen::Matrix<double, 12, 12>;
 using M6D = Eigen::Matrix<double, 6, 6>;
 
 using V6D = Eigen::Matrix<double, 6, 1>;
-using V12D = Eigen::Matrix<double, 12, 1>;
 
 static constexpr int kNominalStateDim = 27;
 static constexpr int kNoiseDim = 12;

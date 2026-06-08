@@ -11,6 +11,7 @@ using M3D = Eigen::Matrix3d;
 using V3D = Eigen::Vector3d;
 using M3F = Eigen::Matrix3f;
 using V3F = Eigen::Vector3f;
+using V12D = Eigen::Matrix<double, 12, 1>;
 using M2D = Eigen::Matrix2d;
 using V2D = Eigen::Vector2d;
 using M2F = Eigen::Matrix2f;
@@ -63,6 +64,17 @@ struct IMUData
     IMUData(const V3D &a, const V3D &g, double &t) : acc(a), gyro(g), time(t) {}
 };
 
+struct LowStateData
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    V12D joint_pos = V12D::Zero();
+    V12D joint_vel = V12D::Zero();
+    V4D foot_force = V4D::Zero();
+    double time;
+    LowStateData() = default;
+    LowStateData(const V12D &q, const V12D &dq, const V4D &force, double &t) : joint_pos(q), joint_vel(dq), foot_force(force), time(t) {}
+};
+
 struct Pose
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -79,6 +91,7 @@ struct Pose
 struct SyncPackage
 {
     Vec<IMUData> imus;
+    Vec<LowStateData> lowstates;
     CloudType::Ptr cloud;
     double cloud_start_time = 0.0;
     double cloud_end_time = 0.0;

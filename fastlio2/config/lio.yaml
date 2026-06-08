@@ -1,5 +1,6 @@
 imu_topic: /livox/imu
 lidar_topic: /livox/lidar
+lowstate_topic: /lowstate
 body_frame: fastlio_lidar
 world_frame: world
 print_time_cost: true
