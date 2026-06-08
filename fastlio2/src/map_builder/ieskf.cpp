@@ -11,23 +11,31 @@ M3D JrInv(const V3D &inp)
     return Sophus::SO3d::leftJacobianInverse(inp).transpose();
 }
 
-void State::operator+=(const V15D &delta)
+void State::operator+=(const VStateD &delta)
 {
     r_wi *= Sophus::SO3d::exp(delta.segment<3>(0)).matrix();
     t_wi += delta.segment<3>(3);
     v += delta.segment<3>(6);
     ba += delta.segment<3>(9);
     bg += delta.segment<3>(12);
+    p_f1 += delta.segment<3>(kFootPositionStartIdx);
+    p_f2 += delta.segment<3>(kFootPositionStartIdx + 3);
+    p_f3 += delta.segment<3>(kFootPositionStartIdx + 6);
+    p_f4 += delta.segment<3>(kFootPositionStartIdx + 9);
 }
 
-V15D State::operator-(const State &other) const
+VStateD State::operator-(const State &other) const
 {
-    V15D delta = V15D::Zero();
+    VStateD delta = VStateD::Zero();
     delta.segment<3>(0) = Sophus::SO3d(other.r_wi.transpose() * r_wi).log();
     delta.segment<3>(3) = t_wi - other.t_wi;
     delta.segment<3>(6) = v - other.v;
     delta.segment<3>(9) = ba - other.ba;
     delta.segment<3>(12) = bg - other.bg;
+    delta.segment<3>(kFootPositionStartIdx) = p_f1 - other.p_f1;
+    delta.segment<3>(kFootPositionStartIdx + 3) = p_f2 - other.p_f2;
+    delta.segment<3>(kFootPositionStartIdx + 6) = p_f3 - other.p_f3;
+    delta.segment<3>(kFootPositionStartIdx + 9) = p_f4 - other.p_f4;
     return delta;
 }
 
@@ -39,6 +47,10 @@ std::ostream &operator<<(std::ostream &os, const State &state)
     os << "v: " << state.v.transpose() << std::endl;
     os << "ba: " << state.ba.transpose() << std::endl;
     os << "bg: " << state.bg.transpose() << std::endl;
+    os << "p_f1: " << state.p_f1.transpose() << std::endl;
+    os << "p_f2: " << state.p_f2.transpose() << std::endl;
+    os << "p_f3: " << state.p_f3.transpose() << std::endl;
+    os << "p_f4: " << state.p_f4.transpose() << std::endl;
     os << "g: " << state.g.transpose() << std::endl;
     os << "===============END================" << std::endl;
 
@@ -47,7 +59,7 @@ std::ostream &operator<<(std::ostream &os, const State &state)
 
 void IESKF::predict(const Input &inp, double dt, const M12D &Q)
 {
-    V15D delta = V15D::Zero();
+    VStateD delta = VStateD::Zero();
     delta.segment<3>(0) = (inp.gyro - m_x.bg) * dt;
     delta.segment<3>(3) = m_x.v * dt;
     delta.segment<3>(6) = (m_x.r_wi * (inp.acc - m_x.ba) + m_x.g) * dt;
@@ -75,9 +87,9 @@ void IESKF::update()
     SharedState shared_data;
     shared_data.iter_num = 0;
     shared_data.res = 1e10;
-    V15D delta = V15D::Zero();
-    M15D H = M15D::Identity();
-    V15D b;
+    VStateD delta = VStateD::Zero();
+    MStateD H = MStateD::Identity();
+    VStateD b;
 
     for (size_t i = 0; i < m_max_iter; i++)
     {
@@ -87,7 +99,7 @@ void IESKF::update()
         H.setZero();
         b.setZero();
         delta = m_x - predict_x;
-        M15D J = M15D::Identity();
+        MStateD J = MStateD::Identity();
         J.block<3, 3>(0, 0) = JrInv(delta.segment<3>(0));
         H += J.transpose() * m_P.inverse() * J;
         b += J.transpose() * m_P.inverse() * delta;
@@ -104,7 +116,7 @@ void IESKF::update()
             break;
     }
 
-    M15D L = M15D::Identity();
+    MStateD L = MStateD::Identity();
     // L.block<3, 3>(0, 0) = JrInv(delta.segment<3>(0));
     L.block<3, 3>(0, 0) = Jr(delta.segment<3>(0));
     m_P = L * H.inverse() * L.transpose();

@@ -5,12 +5,18 @@
 
 using M12D = Eigen::Matrix<double, 12, 12>;
 using M6D = Eigen::Matrix<double, 6, 6>;
-using M15D = Eigen::Matrix<double, 15, 15>;
 
 using V6D = Eigen::Matrix<double, 6, 1>;
 using V12D = Eigen::Matrix<double, 12, 1>;
-using V15D = Eigen::Matrix<double, 15, 1>;
-using M15X12D = Eigen::Matrix<double, 15, 12>;
+
+static constexpr int kNominalStateDim = 27;
+static constexpr int kNoiseDim = 12;
+static constexpr int kFootPositionStartIdx = 15;
+static constexpr int kFootPositionDim = 12;
+
+using MStateD = Eigen::Matrix<double, kNominalStateDim, kNominalStateDim>;
+using VStateD = Eigen::Matrix<double, kNominalStateDim, 1>;
+using MStateXNoiseD = Eigen::Matrix<double, kNominalStateDim, kNoiseDim>;
 
 M3D Jr(const V3D &inp);
 M3D JrInv(const V3D &inp);
@@ -43,19 +49,23 @@ struct State
     V3D v = V3D::Zero();
     V3D ba = V3D::Zero();
     V3D bg = V3D::Zero();
+    V3D p_f1 = V3D::Zero();
+    V3D p_f2 = V3D::Zero();
+    V3D p_f3 = V3D::Zero();
+    V3D p_f4 = V3D::Zero();
     V3D g = V3D(0.0, 0.0, -9.81);
 
     void initGravityDir(const V3D &gravity_dir) { g = gravity_dir.normalized() * State::gravity; }
 
-    void operator+=(const V15D &delta);
+    void operator+=(const VStateD &delta);
 
-    V15D operator-(const State &other) const;
+    VStateD operator-(const State &other) const;
 
     friend std::ostream &operator<<(std::ostream &os, const State &state);
 };
 
 using loss_func = std::function<void(State &, SharedState &)>;
-using stop_func = std::function<bool(const V15D &)>;
+using stop_func = std::function<bool(const VStateD &)>;
 
 class IESKF
 {
@@ -71,14 +81,14 @@ public:
 
     State &x() { return m_x; }
 
-    M15D &P() { return m_P; }
+    MStateD &P() { return m_P; }
 
 private:
     size_t m_max_iter = 10;
     State m_x;
-    M15D m_P;
+    MStateD m_P;
     loss_func m_loss_func;
     stop_func m_stop_func;
-    M15D m_F;
-    M15X12D m_G;
+    MStateD m_F;
+    MStateXNoiseD m_G;
 };

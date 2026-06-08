@@ -19,7 +19,7 @@ LidarProcessor::LidarProcessor(Config &config, std::shared_ptr<IESKF> kf) : m_co
 
     m_kf->setLossFunction([&](State &s, SharedState &d)
                           { updateLossFunc(s, d); });
-    m_kf->setStopFunction([&](const V15D &delta) -> bool
+    m_kf->setStopFunction([&](const VStateD &delta) -> bool
                           { V3D rot_delta = delta.block<3, 1>(0, 0);
                             V3D t_delta = delta.block<3, 1>(3, 0);
                             return (rot_delta.norm() * 57.3 < 0.01) && (t_delta.norm() * 100 < 0.015); });
@@ -154,7 +154,7 @@ void LidarProcessor::process(SyncPackage &package)
 {
     // m_kf->setLossFunction([&](State &s, SharedState &d)
     //                       { updateLossFunc(s, d); });
-    // m_kf->setStopFunction([&](const V15D &delta) -> bool
+    // m_kf->setStopFunction([&](const VStateD &delta) -> bool
     //                       { V3D rot_delta = delta.block<3, 1>(0, 0);
     //                         V3D t_delta = delta.block<3, 1>(3, 0);
     //                         return (rot_delta.norm() * 57.3 < 0.01) && (t_delta.norm() * 100 < 0.015); });
