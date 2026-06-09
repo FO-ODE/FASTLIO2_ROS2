@@ -30,3 +30,13 @@ r_il: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 t_il: [-0.011, -0.02329, 0.04412]
 
 lidar_cov_inv: 1000.0
+
+contact_enable: true
+contact_force_threshold: 20.0
+contact_position_cov_inv: 100.0
+contact_velocity_cov_inv: 100.0
+contact_abduction_link: 0.0955
+contact_thigh_link: 0.213
+contact_calf_link: 0.213
+# Unitree motor order: FR, FL, RR, RL; each hip offset is [x, y, z] in body frame.
+contact_hip_offsets: [0.1934, -0.0465, 0.0, 0.1934, 0.0465, 0.0, -0.1934, -0.0465, 0.0, -0.1934, 0.0465, 0.0]

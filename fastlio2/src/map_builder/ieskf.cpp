@@ -90,12 +90,14 @@ void IESKF::update()
     VStateD delta = VStateD::Zero();
     MStateD H = MStateD::Identity();
     VStateD b;
+    bool updated = false;
 
     for (size_t i = 0; i < m_max_iter; i++)
     {
         m_loss_func(m_x, shared_data);
         if (!shared_data.valid)
             break;
+        updated = true;
         H.setZero();
         b.setZero();
         delta = m_x - predict_x;
@@ -104,8 +106,8 @@ void IESKF::update()
         H += J.transpose() * m_P.inverse() * J;
         b += J.transpose() * m_P.inverse() * delta;
 
-        H.block<6, 6>(0, 0) += shared_data.H;
-        b.block<6, 1>(0, 0) += shared_data.b;
+        H += shared_data.H;
+        b += shared_data.b;
 
         delta = -H.inverse() * b;
 
@@ -115,6 +117,9 @@ void IESKF::update()
         if (m_stop_func(delta))
             break;
     }
+
+    if (!updated)
+        return;
 
     MStateD L = MStateD::Identity();
     // L.block<3, 3>(0, 0) = JrInv(delta.segment<3>(0));

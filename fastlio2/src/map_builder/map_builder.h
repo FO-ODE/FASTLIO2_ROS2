@@ -1,4 +1,5 @@
 #pragma once
+#include "contact_processor.h"
 #include "imu_processor.h"
 #include "lidar_processor.h"
 
@@ -23,5 +24,6 @@ private:
     BuilderStatus m_status;
     std::shared_ptr<IESKF> m_kf;
     std::shared_ptr<IMUProcessor> m_imu_processor;
+    std::shared_ptr<ContactProcessor> m_contact_processor;
     std::shared_ptr<LidarProcessor> m_lidar_processor;
 };

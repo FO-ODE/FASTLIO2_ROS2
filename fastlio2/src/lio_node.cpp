@@ -118,6 +118,30 @@ public:
         m_builder_config.t_il << t_il_vec[0], t_il_vec[1], t_il_vec[2];
         m_builder_config.r_il << r_il_vec[0], r_il_vec[1], r_il_vec[2], r_il_vec[3], r_il_vec[4], r_il_vec[5], r_il_vec[6], r_il_vec[7], r_il_vec[8];
         m_builder_config.lidar_cov_inv = config["lidar_cov_inv"].as<double>();
+
+        if (config["contact_enable"])
+            m_builder_config.contact_enable = config["contact_enable"].as<bool>();
+        if (config["contact_force_threshold"])
+            m_builder_config.contact_force_threshold = config["contact_force_threshold"].as<double>();
+        if (config["contact_position_cov_inv"])
+            m_builder_config.contact_position_cov_inv = config["contact_position_cov_inv"].as<double>();
+        if (config["contact_velocity_cov_inv"])
+            m_builder_config.contact_velocity_cov_inv = config["contact_velocity_cov_inv"].as<double>();
+        if (config["contact_abduction_link"])
+            m_builder_config.contact_abduction_link = config["contact_abduction_link"].as<double>();
+        if (config["contact_thigh_link"])
+            m_builder_config.contact_thigh_link = config["contact_thigh_link"].as<double>();
+        if (config["contact_calf_link"])
+            m_builder_config.contact_calf_link = config["contact_calf_link"].as<double>();
+        if (config["contact_hip_offsets"])
+        {
+            std::vector<double> hip_offsets = config["contact_hip_offsets"].as<std::vector<double>>();
+            if (hip_offsets.size() == 12)
+            {
+                for (size_t i = 0; i < 12; i++)
+                    m_builder_config.contact_hip_offsets(i) = hip_offsets[i];
+            }
+        }
     }
 
     void imuCB(const sensor_msgs::msg::Imu::SharedPtr msg)

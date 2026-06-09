@@ -24,8 +24,8 @@ struct SharedState
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    M6D H;
-    V6D b;
+    MStateD H = MStateD::Zero();
+    VStateD b = VStateD::Zero();
     double res = 1e10;
     bool valid = false;
     size_t iter_num = 0;

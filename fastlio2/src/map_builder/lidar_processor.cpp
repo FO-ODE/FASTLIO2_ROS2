@@ -152,12 +152,12 @@ void LidarProcessor::initCloudMap(PointVec &point_vec)
 
 void LidarProcessor::process(SyncPackage &package)
 {
-    // m_kf->setLossFunction([&](State &s, SharedState &d)
-    //                       { updateLossFunc(s, d); });
-    // m_kf->setStopFunction([&](const VStateD &delta) -> bool
-    //                       { V3D rot_delta = delta.block<3, 1>(0, 0);
-    //                         V3D t_delta = delta.block<3, 1>(3, 0);
-    //                         return (rot_delta.norm() * 57.3 < 0.01) && (t_delta.norm() * 100 < 0.015); });
+    m_kf->setLossFunction([&](State &s, SharedState &d)
+                          { updateLossFunc(s, d); });
+    m_kf->setStopFunction([&](const VStateD &delta) -> bool
+                          { V3D rot_delta = delta.block<3, 1>(0, 0);
+                            V3D t_delta = delta.block<3, 1>(3, 0);
+                            return (rot_delta.norm() * 57.3 < 0.01) && (t_delta.norm() * 100 < 0.015); });
     if (m_config.scan_resolution > 0.0)
     {
         m_scan_filter.setInputCloud(package.cloud);
@@ -245,8 +245,8 @@ void LidarProcessor::updateLossFunc(State &state, SharedState &share_data)
         Eigen::Matrix<double, 1, 3> B = -norm_vec.transpose() * state.r_wi * Sophus::SO3d::hat(m_config.r_il * laser_p_vec + m_config.t_il);
         J.block<1, 3>(0, 0) = B;
         J.block<1, 3>(0, 3) = norm_vec.transpose();
-        share_data.H += J.transpose() * m_config.lidar_cov_inv * J;
-        share_data.b += J.transpose() * m_config.lidar_cov_inv * norm_p.intensity;
+        share_data.H.block<6, 6>(0, 0) += J.transpose() * m_config.lidar_cov_inv * J;
+        share_data.b.segment<6>(0) += J.transpose() * m_config.lidar_cov_inv * norm_p.intensity;
     }
 }
 

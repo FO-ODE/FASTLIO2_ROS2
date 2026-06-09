@@ -2,6 +2,7 @@
 MapBuilder::MapBuilder(Config &config, std::shared_ptr<IESKF> kf) : m_config(config), m_kf(kf)
 {
     m_imu_processor = std::make_shared<IMUProcessor>(config, kf);
+    m_contact_processor = std::make_shared<ContactProcessor>(config, kf);
     m_lidar_processor = std::make_shared<LidarProcessor>(config, kf);
     m_status = BuilderStatus::IMU_INIT;
 }
@@ -16,6 +17,7 @@ void MapBuilder::process(SyncPackage &package)
     }
 
     m_imu_processor->undistort(package);
+    m_contact_processor->process(package);
 
     if (m_status == BuilderStatus::MAP_INIT)
     {

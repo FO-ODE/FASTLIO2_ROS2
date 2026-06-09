@@ -52,6 +52,19 @@ struct Config
     V3D t_il = V3D::Zero();
 
     double lidar_cov_inv = 1000.0;
+
+    bool contact_enable = true;
+    double contact_force_threshold = 20.0;
+    double contact_position_cov_inv = 100.0;
+    double contact_velocity_cov_inv = 100.0;
+    double contact_abduction_link = 0.0955;
+    double contact_thigh_link = 0.213;
+    double contact_calf_link = 0.213;
+    V12D contact_hip_offsets = (V12D() << 0.1934, -0.0465, 0.0,
+                                0.1934, 0.0465, 0.0,
+                                -0.1934, -0.0465, 0.0,
+                                -0.1934, 0.0465, 0.0)
+                                   .finished();
 };
 
 struct IMUData
