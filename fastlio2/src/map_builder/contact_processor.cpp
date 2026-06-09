@@ -174,7 +174,8 @@ V3D ContactProcessor::footRelativePosition(int foot_idx) const
     p_leg.y() = side_sign * l_ab * std::cos(q_ab) + leg_extension * std::sin(q_ab);
     p_leg.z() = side_sign * l_ab * std::sin(q_ab) - leg_extension * std::cos(q_ab);
 
-    const V3D p_base_to_foot = m_config.contact_hip_offsets.segment<3>(joint_idx) + p_leg;
+    const V3D p_base_to_foot_link = m_config.contact_hip_offsets.segment<3>(joint_idx) + p_leg;
+    const V3D p_base_to_foot = p_base_to_foot_link + V3D(0.0, 0.0, -m_config.contact_foot_link_to_ground);
     const V3D p_body_to_foot = m_config.contact_r_base_body.transpose() * (p_base_to_foot - m_config.contact_t_base_body);
 
     // Formula (15) uses R_wb^T * (p_wb - p_f_i), so expose the body-minus-foot

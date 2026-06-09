@@ -175,6 +175,8 @@ public:
             m_builder_config.contact_thigh_link = config["contact_thigh_link"].as<double>();
         if (config["contact_calf_link"])
             m_builder_config.contact_calf_link = config["contact_calf_link"].as<double>();
+        if (config["contact_foot_link_to_ground"])
+            m_builder_config.contact_foot_link_to_ground = config["contact_foot_link_to_ground"].as<double>();
         if (config["contact_r_base_body"])
         {
             std::vector<double> r_base_body = config["contact_r_base_body"].as<std::vector<double>>();

@@ -47,6 +47,8 @@ contact_foot_position_noise: 0.01
 contact_abduction_link: 0.0955
 contact_thigh_link: 0.213
 contact_calf_link: 0.213
+# Current FK reaches the *_foot link. The real contact point is about 2 cm below it.
+contact_foot_link_to_ground: 0.02
 # Unitree base -> FAST-LIO body/IMU. Here FAST-LIO body coincides with mid360_imu.
 # From go2_description.urdf:
 # base -> mid360withcase: xyz [0.22, 0, 0.08], rpy [0, 0, 0]
