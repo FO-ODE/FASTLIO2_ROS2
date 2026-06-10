@@ -34,6 +34,7 @@ struct NodeConfig
     std::string body_frame = "body";
     std::string world_frame = "lidar";
     bool publish_foot_markers = true;
+    bool publish_propagated_tf = false;
     std::string foot_marker_topic = "foot_markers";
     std::vector<std::string> foot_marker_names = {"fr", "fl", "rr", "rl"};
     std::array<std::array<float, 3>, 4> foot_marker_colors = {{
@@ -50,13 +51,18 @@ struct StateData
     std::mutex imu_mutex;
     std::mutex lidar_mutex;
     std::mutex lowstate_mutex;
+    std::mutex propagated_tf_mutex;
     double last_lidar_time = -1.0;
     double last_imu_time = -1.0;
     double last_lowstate_time = -1.0;
+    double propagated_tf_time = -1.0;
+    bool propagated_tf_initialized = false;
     std::deque<IMUData> imu_buffer;
+    std::deque<IMUData> propagated_tf_imu_buffer;
     std::deque<LowStateData> lowstate_buffer;
     std::deque<std::pair<double, pcl::PointCloud<pcl::PointXYZINormal>::Ptr>> lidar_buffer;
     nav_msgs::msg::Path path;
+    State propagated_tf_state;
 };
 
 class LIONode : public rclcpp::Node
@@ -110,6 +116,8 @@ public:
         m_node_config.print_time_cost = config["print_time_cost"].as<bool>();
         if (config["publish_foot_markers"])
             m_node_config.publish_foot_markers = config["publish_foot_markers"].as<bool>();
+        if (config["publish_propagated_tf"])
+            m_node_config.publish_propagated_tf = config["publish_propagated_tf"].as<bool>();
         if (config["foot_marker_topic"])
             m_node_config.foot_marker_topic = config["foot_marker_topic"].as<std::string>();
         if (config["foot_marker_names"])
@@ -220,10 +228,21 @@ public:
         {
             RCLCPP_WARN(this->get_logger(), "IMU Message is out of order");
             std::deque<IMUData>().swap(m_state_data.imu_buffer);
+            if (m_node_config.publish_propagated_tf)
+            {
+                std::lock_guard<std::mutex> tf_lock(m_state_data.propagated_tf_mutex);
+                std::deque<IMUData>().swap(m_state_data.propagated_tf_imu_buffer);
+                m_state_data.propagated_tf_initialized = false;
+            }
         }
         m_state_data.imu_buffer.emplace_back(V3D(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z) * 10.0,
                                              V3D(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z),
                                              timestamp);
+        if (m_node_config.publish_propagated_tf)
+        {
+            std::lock_guard<std::mutex> tf_lock(m_state_data.propagated_tf_mutex);
+            m_state_data.propagated_tf_imu_buffer.emplace_back(m_state_data.imu_buffer.back());
+        }
         m_state_data.last_imu_time = timestamp;
     }
 
@@ -364,12 +383,17 @@ public:
 
     void broadCastTF(std::shared_ptr<tf2_ros::TransformBroadcaster> broad_caster, std::string frame_id, std::string child_frame, const double &time)
     {
+        broadCastStateTF(broad_caster, frame_id, child_frame, time, m_kf->x());
+    }
+
+    void broadCastStateTF(std::shared_ptr<tf2_ros::TransformBroadcaster> broad_caster, std::string frame_id, std::string child_frame, const double &time, const State &state)
+    {
         geometry_msgs::msg::TransformStamped transformStamped;
         transformStamped.header.frame_id = frame_id;
         transformStamped.child_frame_id = child_frame;
         transformStamped.header.stamp = Utils::getTime(time);
-        Eigen::Quaterniond q(m_kf->x().r_wi);
-        V3D t = m_kf->x().t_wi;
+        Eigen::Quaterniond q(state.r_wi);
+        V3D t = state.t_wi;
         transformStamped.transform.translation.x = t.x();
         transformStamped.transform.translation.y = t.y();
         transformStamped.transform.translation.z = t.z();
@@ -378,6 +402,58 @@ public:
         transformStamped.transform.rotation.z = q.z();
         transformStamped.transform.rotation.w = q.w();
         broad_caster->sendTransform(transformStamped);
+    }
+
+    void propagateState(State &state, const IMUData &imu, const double dt)
+    {
+        const V3D gyro = imu.gyro - state.bg;
+        const V3D acc = state.r_wi * (imu.acc - state.ba) + state.g;
+        state.r_wi *= Sophus::SO3d::exp(gyro * dt).matrix();
+        state.t_wi += state.v * dt;
+        state.v += acc * dt;
+    }
+
+    bool publishPropagatedTF()
+    {
+        if (!m_node_config.publish_propagated_tf || m_builder->status() != BuilderStatus::MAPPING)
+            return false;
+
+        std::lock_guard<std::mutex> lock(m_state_data.propagated_tf_mutex);
+        if (!m_state_data.propagated_tf_initialized)
+            return false;
+
+        bool advanced = false;
+        for (const auto &imu : m_state_data.propagated_tf_imu_buffer)
+        {
+            const double dt = imu.time - m_state_data.propagated_tf_time;
+            if (dt <= 0.0)
+                continue;
+            propagateState(m_state_data.propagated_tf_state, imu, dt);
+            m_state_data.propagated_tf_time = imu.time;
+            advanced = true;
+        }
+        while (m_state_data.propagated_tf_imu_buffer.size() > 2000)
+            m_state_data.propagated_tf_imu_buffer.pop_front();
+
+        if (!advanced)
+            return false;
+
+        broadCastStateTF(m_tf_broadcaster, m_node_config.world_frame, m_node_config.body_frame,
+                         m_state_data.propagated_tf_time, m_state_data.propagated_tf_state);
+        return true;
+    }
+
+    void resetPropagatedTFState(const double &time)
+    {
+        if (!m_node_config.publish_propagated_tf)
+            return;
+
+        std::lock_guard<std::mutex> lock(m_state_data.propagated_tf_mutex);
+        m_state_data.propagated_tf_state = m_kf->x();
+        m_state_data.propagated_tf_time = time;
+        m_state_data.propagated_tf_initialized = true;
+        while (!m_state_data.propagated_tf_imu_buffer.empty() && m_state_data.propagated_tf_imu_buffer.front().time <= time)
+            m_state_data.propagated_tf_imu_buffer.pop_front();
     }
 
     void publishFootMarkers(rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub, const double &time)
@@ -408,7 +484,7 @@ public:
             marker.color.r = m_node_config.foot_marker_colors[i][0];
             marker.color.g = m_node_config.foot_marker_colors[i][1];
             marker.color.b = m_node_config.foot_marker_colors[i][2];
-            marker.color.a = 1.0;
+            marker.color.a = 0.5;
             marker.lifetime = rclcpp::Duration::from_seconds(0.2);
             marker.text = m_node_config.foot_marker_names[i];
             marker_array.markers.push_back(marker);
@@ -418,6 +494,8 @@ public:
 
     void timerCB()
     {
+        publishPropagatedTF();
+
         if (!syncPackage())
             return;
         auto t1 = std::chrono::high_resolution_clock::now();
@@ -433,7 +511,10 @@ public:
         if (m_builder->status() != BuilderStatus::MAPPING)
             return;
 
-        broadCastTF(m_tf_broadcaster, m_node_config.world_frame, m_node_config.body_frame, m_package.cloud_end_time);
+        if (m_node_config.publish_propagated_tf)
+            resetPropagatedTFState(m_package.cloud_end_time);
+        else
+            broadCastTF(m_tf_broadcaster, m_node_config.world_frame, m_node_config.body_frame, m_package.cloud_end_time);
         if (m_node_config.publish_foot_markers)
             publishFootMarkers(m_foot_marker_pub, m_package.cloud_end_time);
 

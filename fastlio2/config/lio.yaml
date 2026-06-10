@@ -4,6 +4,7 @@ lowstate_topic: /lowstate
 body_frame: fastlio_lidar
 world_frame: world
 publish_foot_markers: true
+publish_propagated_tf: true
 foot_marker_topic: foot_markers
 foot_marker_names: [fr, fl, rr, rl]
 # Marker RGB colors in the same order as foot_marker_names:
@@ -26,7 +27,7 @@ ng: 0.01
 nba: 0.0001
 nbg: 0.0001
 
-imu_init_num: 50
+imu_init_num: 200
 near_search_num: 5
 ieskf_max_iter: 5
 state_log_enable: true
