@@ -53,7 +53,6 @@ void IMUProcessor::undistort(SyncPackage &package)
     m_imu_cache.push_back(m_last_imu);
     m_imu_cache.insert(m_imu_cache.end(), package.imus.begin(), package.imus.end());
 
-    // const double imu_time_begin = m_imu_cache.front().time;
     const double imu_time_end = m_imu_cache.back().time;
 
     const double cloud_time_begin = package.cloud_start_time;

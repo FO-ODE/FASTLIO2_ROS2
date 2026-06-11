@@ -31,12 +31,10 @@ private:
 
     Config m_config;
     std::shared_ptr<IESKF> m_kf;
-    Vec<LowStateData> m_lowstate_cache;
     LowStateData m_latest_lowstate;
     V4D m_contact_state;
     V4D m_prev_contact_state;
     V3D m_latest_gyro = V3D::Zero();
-    double m_last_process_time = 0.0;
     bool m_has_lowstate = false;
     bool m_has_imu = false;
 };

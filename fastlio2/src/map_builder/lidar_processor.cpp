@@ -80,8 +80,8 @@ void LidarProcessor::trimCloudMap()
     }
     m_local_map.local_map_corner = new_corner;
 
-    PointVec points_history;
-    m_ikdtree->acquire_removed_points(points_history);
+    PointVec removed_points_discard;
+    m_ikdtree->acquire_removed_points(removed_points_discard);
 
     // 删除局部地图之外的点云
     if (m_local_map.cub_to_rm.size() > 0)

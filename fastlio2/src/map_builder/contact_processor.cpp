@@ -5,7 +5,6 @@
 ContactProcessor::ContactProcessor(Config &config, std::shared_ptr<IESKF> kf) : m_config(config), m_kf(kf)
 {
     resetContactState();
-    m_lowstate_cache.clear();
 }
 
 void ContactProcessor::process(SyncPackage &package)
@@ -97,14 +96,10 @@ void ContactProcessor::updateLossFunc(State &state, SharedState &share_data)
 
 void ContactProcessor::cacheLowStates(SyncPackage &package)
 {
-    m_lowstate_cache.clear();
-    m_lowstate_cache.insert(m_lowstate_cache.end(), package.lowstates.begin(), package.lowstates.end());
-
-    if (m_lowstate_cache.empty())
+    if (package.lowstates.empty())
         return;
 
-    m_latest_lowstate = m_lowstate_cache.back();
-    m_last_process_time = m_latest_lowstate.time;
+    m_latest_lowstate = package.lowstates.back();
     m_has_lowstate = true;
 }
 
@@ -269,5 +264,4 @@ void ContactProcessor::resetContactState()
     m_latest_gyro.setZero();
     m_has_lowstate = false;
     m_has_imu = false;
-    m_last_process_time = 0.0;
 }
