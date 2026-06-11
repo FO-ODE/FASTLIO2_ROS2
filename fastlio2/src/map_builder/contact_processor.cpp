@@ -52,20 +52,20 @@ void ContactProcessor::updateLossFunc(State &state, SharedState &share_data)
         if (m_contact_state(foot_idx) < 0.5)
             continue;
 
-        const V3D p_f_rel = footRelativePosition(foot_idx);
+        const V3D p_f_rel = footRelativePosition(state, foot_idx);
         const V3D v_f_rel = footRelativeVelocity(foot_idx);
         const V3D &p_f = footPosition(state, foot_idx);
         const int foot_state_idx = kFootPositionStartIdx + 3 * foot_idx;
 
         // Formula (16): contact velocity residual in world frame.
         const V3D velocity_body_term = v_f_rel + omega.cross(p_f_rel);
-        const V3D h_cv = state.v + R_wb * velocity_body_term;
+        const V3D h_cv = state.v - R_wb * velocity_body_term;
 
         Eigen::Matrix<double, 3, kNominalStateDim> J_cv;
         J_cv.setZero();
-        J_cv.block<3, 3>(0, 0) = -R_wb * Sophus::SO3d::hat(velocity_body_term);
+        J_cv.block<3, 3>(0, 0) = R_wb * Sophus::SO3d::hat(velocity_body_term);
         J_cv.block<3, 3>(0, 6) = M3D::Identity();
-        J_cv.block<3, 3>(0, 12) = R_wb * Sophus::SO3d::hat(p_f_rel);
+        J_cv.block<3, 3>(0, 12) = -R_wb * Sophus::SO3d::hat(p_f_rel);
 
         share_data.H += J_cv.transpose() * m_config.contact_velocity_cov_inv * J_cv;
         share_data.b += J_cv.transpose() * m_config.contact_velocity_cov_inv * h_cv;
@@ -147,7 +147,7 @@ void ContactProcessor::initializeNewContacts()
             continue;
 
         // Formula (15) inverted: p_f_i = p_wb - R_wb * p_f_i^rel.
-        footPosition(state, foot_idx) = state.t_wi - state.r_wi * footRelativePosition(foot_idx);
+        footPosition(state, foot_idx) = state.t_wi - state.r_wi * footRelativePosition(state, foot_idx);
     }
 }
 
@@ -156,7 +156,15 @@ bool ContactProcessor::hasActiveContact() const
     return m_contact_state.maxCoeff() > 0.5;
 }
 
-V3D ContactProcessor::footRelativePosition(int foot_idx) const
+V3D ContactProcessor::gravityOffsetBody(const State &state) const
+{
+    if (m_config.contact_foot_link_to_ground <= 0.0 || state.g.squaredNorm() < 1e-12)
+        return V3D::Zero();
+
+    return state.r_wi.transpose() * state.g.normalized() * m_config.contact_foot_link_to_ground;
+}
+
+V3D ContactProcessor::footRelativePosition(const State &state, int foot_idx) const
 {
     const int joint_idx = 3 * foot_idx;
     const V3D q = m_latest_lowstate.joint_pos.segment<3>(joint_idx);
@@ -177,11 +185,12 @@ V3D ContactProcessor::footRelativePosition(int foot_idx) const
     p_leg.z() = side_sign * l_ab * std::sin(q_ab) - leg_extension * std::cos(q_ab);
 
     const V3D p_base_to_foot_link = m_config.contact_hip_offsets.segment<3>(joint_idx) + p_leg;
-    const V3D p_base_to_foot = p_base_to_foot_link + V3D(0.0, 0.0, -m_config.contact_foot_link_to_ground);
-    const V3D p_body_to_foot = m_config.contact_r_base_body.transpose() * (p_base_to_foot - m_config.contact_t_base_body);
+    const V3D p_body_to_foot_link = m_config.contact_r_base_body.transpose() * (p_base_to_foot_link - m_config.contact_t_base_body);
+    const V3D p_body_to_foot = p_body_to_foot_link + gravityOffsetBody(state);
 
     // Formula (15) uses R_wb^T * (p_wb - p_f_i), so expose the body-minus-foot
-    // vector in the FAST-LIO body/IMU frame. Unitree FK is computed in base.
+    // vector in the FAST-LIO body/IMU frame. Unitree FK is computed in base,
+    // then the foot-link-to-ground offset is applied along initialized gravity.
     return -p_body_to_foot;
 }
 

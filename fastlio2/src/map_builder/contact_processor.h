@@ -23,7 +23,8 @@ private:
     void initializeNewContacts();
     void resetContactState();
     bool hasActiveContact() const;
-    V3D footRelativePosition(int foot_idx) const;
+    V3D gravityOffsetBody(const State &state) const;
+    V3D footRelativePosition(const State &state, int foot_idx) const;
     V3D footRelativeVelocity(int foot_idx) const;
     V3D &footPosition(State &state, int foot_idx) const;
     const V3D &footPosition(const State &state, int foot_idx) const;

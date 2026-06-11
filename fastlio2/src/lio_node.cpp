@@ -1,12 +1,9 @@
 #include <mutex>
 #include <vector>
-#include <queue>
 #include <memory>
-#include <iostream>
 #include <chrono>
 #include <cmath>
 #include <array>
-// #include <filesystem>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <livox_ros_driver2/msg/custom_msg.hpp>
@@ -235,7 +232,7 @@ public:
                 m_state_data.propagated_tf_initialized = false;
             }
         }
-        m_state_data.imu_buffer.emplace_back(V3D(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z) * 10.0,
+        m_state_data.imu_buffer.emplace_back(V3D(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z) * State::gravity,
                                              V3D(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z),
                                              timestamp);
         if (m_node_config.publish_propagated_tf)
@@ -381,11 +378,6 @@ public:
         path_pub->publish(m_state_data.path);
     }
 
-    void broadCastTF(std::shared_ptr<tf2_ros::TransformBroadcaster> broad_caster, std::string frame_id, std::string child_frame, const double &time)
-    {
-        broadCastStateTF(broad_caster, frame_id, child_frame, time, m_kf->x());
-    }
-
     void broadCastStateTF(std::shared_ptr<tf2_ros::TransformBroadcaster> broad_caster, std::string frame_id, std::string child_frame, const double &time, const State &state)
     {
         geometry_msgs::msg::TransformStamped transformStamped;
@@ -413,14 +405,14 @@ public:
         state.v += acc * dt;
     }
 
-    bool publishPropagatedTF()
+    void publishPropagatedTF()
     {
         if (!m_node_config.publish_propagated_tf || m_builder->status() != BuilderStatus::MAPPING)
-            return false;
+            return;
 
         std::lock_guard<std::mutex> lock(m_state_data.propagated_tf_mutex);
         if (!m_state_data.propagated_tf_initialized)
-            return false;
+            return;
 
         bool advanced = false;
         for (const auto &imu : m_state_data.propagated_tf_imu_buffer)
@@ -436,11 +428,12 @@ public:
             m_state_data.propagated_tf_imu_buffer.pop_front();
 
         if (!advanced)
-            return false;
+            return;
 
         broadCastStateTF(m_tf_broadcaster, m_node_config.world_frame, m_node_config.body_frame,
                          m_state_data.propagated_tf_time, m_state_data.propagated_tf_state);
-        return true;
+        if (m_node_config.publish_foot_markers)
+            publishFootMarkers(m_foot_marker_pub, m_state_data.propagated_tf_time, m_state_data.propagated_tf_state);
     }
 
     void resetPropagatedTFState(const double &time)
@@ -456,12 +449,11 @@ public:
             m_state_data.propagated_tf_imu_buffer.pop_front();
     }
 
-    void publishFootMarkers(rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub, const double &time)
+    void publishFootMarkers(rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub, const double &time, const State &state)
     {
         if (marker_pub->get_subscription_count() <= 0)
             return;
 
-        const State &state = m_kf->x();
         const std::array<V3D, 4> foot_positions = {state.p_f1, state.p_f2, state.p_f3, state.p_f4};
 
         visualization_msgs::msg::MarkerArray marker_array;
@@ -514,9 +506,9 @@ public:
         if (m_node_config.publish_propagated_tf)
             resetPropagatedTFState(m_package.cloud_end_time);
         else
-            broadCastTF(m_tf_broadcaster, m_node_config.world_frame, m_node_config.body_frame, m_package.cloud_end_time);
-        if (m_node_config.publish_foot_markers)
-            publishFootMarkers(m_foot_marker_pub, m_package.cloud_end_time);
+            broadCastStateTF(m_tf_broadcaster, m_node_config.world_frame, m_node_config.body_frame, m_package.cloud_end_time, m_kf->x());
+        if (m_node_config.publish_foot_markers && !m_node_config.publish_propagated_tf)
+            publishFootMarkers(m_foot_marker_pub, m_package.cloud_end_time, m_kf->x());
 
         publishOdometry(m_odom_pub, m_node_config.world_frame, m_node_config.body_frame, m_package.cloud_end_time);
 
