@@ -1,0 +1,21 @@
+ego_centric_map:
+  ros__parameters:
+    input_topic: /fastlio2/world_cloud
+    odom_topic: /fastlio2/lio_odom
+    array_topic: /ego_centric_map
+    marker_topic: /ego_centric_map_markers
+    base_frame: base
+
+    grid_cols: 17
+    grid_rows: 11
+    scan_size_x: 1.6
+    scan_size_y: 1.0
+    center_patch_size: 0.01
+    point_stride: 1
+
+    publish_rate_hz: 10.0
+    plot_update_interval_ms: 100
+
+    # Fixed matplotlib color scale for base z minus highest local ground z.
+    color_min: 0.0
+    color_max: 0.8

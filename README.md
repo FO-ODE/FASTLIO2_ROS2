@@ -14,13 +14,13 @@ It is built upon [FAST_LIO](https://github.com/hku-mars/FAST_LIO) and inspired b
 ## Usage
 
 ```bash
-ros2 launch go2_description_ros2 go2_rviz.launch.py
+ros2 launch go2_description go2_rviz.launch.py
 
 ros2 launch fastlio2 lio_launch.py
 
-ros2 bag play your_bag_file
+ros2 launch nftm_tester ground_height_grid.launch.py
 
-ros2 launch signal_processing ground_height_grid.launch.py
+ros2 bag play your_bag_file
 ```
 
 ## Build dependencies

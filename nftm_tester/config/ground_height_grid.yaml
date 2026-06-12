@@ -1,0 +1,41 @@
+ground_height_grid:
+  ros__parameters:
+    input_topic: /fastlio2/world_cloud
+
+    # 输出地面高度栅格点云话题。
+    # 每个栅格输出一个点，z 和 intensity 都是该栅格估计出的地面高度。
+    output_topic: /ground_height_grid
+
+    grid_resolution: 0.1
+    publish_rate_hz: 2.0
+
+    # 每个栅格内按 z 从低到高排序后，取最低这一部分点计算平均高度
+    # 0.9 表示取最低 90% 的点求平均；值越小越偏向最低点
+    lowest_fraction: 0.9
+
+    # 一个栅格至少累计多少个点后才认为地面高度有效
+    min_points_per_cell: 5
+    # 每个栅格最多保存多少个历史 z 样本；超过后循环覆盖旧样本
+    max_samples_per_cell: 120
+
+    # 点云抽样步长。1 表示使用所有点，2 表示每 2 个点取 1 个。
+    point_stride: 1
+
+    # 是否启用 z 上限过滤。启用后，z >= z_max_threshold 的点会被丢弃
+    use_z_max_threshold: true
+    z_max_threshold: -0.15
+
+    # 最多允许创建的栅格数量
+    max_cells: 200000
+
+    # 是否限制只处理指定 x/y 范围内的点
+    # false 时 x_min/x_max/y_min/y_max 不参与过滤
+    use_bounds: false
+    # 点云处理边界，单位 m。只有 use_bounds 为 true 时生效
+    x_min: -50.0
+    x_max: 50.0
+    y_min: -50.0
+    y_max: 50.0
+
+    # 终端打印地面平均高度和 MSE 的周期
+    stats_log_period_sec: 10.0

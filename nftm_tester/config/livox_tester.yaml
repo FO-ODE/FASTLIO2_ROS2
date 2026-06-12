@@ -1,0 +1,45 @@
+livox_tester:
+  ros__parameters:
+    imu_topic: /livox/imu
+    lidar_topic: /livox/lidar
+
+    # Use one shared x-axis for LiDAR and IMU.
+    # ros: align both streams with ROS receive time.
+    # lidar: use Livox timebase + offset_time for LiDAR points.
+    time_axis: ros
+
+    # Lines to draw in each xyz plot.
+    # Colors are fixed in the script:
+    # line0 red, line1 green, line2 blue, line3 purple.
+    line_ids: [0, 1, 2, 3]
+
+    # Plot switches.
+    show_x: false
+    show_y: false
+    show_z: true
+    show_imu: true
+
+    # Line switches for the common Livox lines.
+    show_line0: true
+    show_line1: false
+    show_line2: false
+    show_line3: false
+
+    # Rolling time window shown in all plots, in seconds.
+    window_s: 1.0
+
+    # UI refresh period in milliseconds.
+    update_interval_ms: 100
+
+    # Maximum displayed samples per line and per IMU curve.
+    # Samples are chosen evenly across the current time window.
+    max_points: 2000
+
+    # Keep every Nth point from each selected line.
+    # Increase this when the UI is still too busy.
+    point_stride: 1
+
+    # Point cloud display style.
+    draw_points: true
+    connect_points: false
+    sort_points: true
